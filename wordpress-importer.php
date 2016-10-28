@@ -1,11 +1,11 @@
 <?php
 /*
-Plugin Name: WordPress Importer
+Plugin Name: XWP Skip Files Importer
 Plugin URI: http://wordpress.org/extend/plugins/wordpress-importer/
 Description: Import posts, pages, comments, custom fields, categories, tags and more from a WordPress export file.
 Author: wordpressdotorg
 Author URI: http://wordpress.org/
-Version: 0.6.3
+Version: 0.1.0
 Text Domain: wordpress-importer
 License: GPL version 2 or later - http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
 */
@@ -35,7 +35,7 @@ require dirname( __FILE__ ) . '/parsers.php';
  * @subpackage Importer
  */
 if ( class_exists( 'WP_Importer' ) ) {
-class WP_Import extends WP_Importer {
+class XWP_Skip_Files_Importer extends WP_Importer {
 	var $max_wxr_version = 1.2; // max. supported WXR version
 
 	var $id; // WXR attachment ID
@@ -979,53 +979,32 @@ class WP_Import extends WP_Importer {
 	 * @return array|WP_Error Local file location details on success, WP_Error otherwise
 	 */
 	function fetch_remote_file( $url, $post ) {
-		// extract the file name and extension from the url
 		$file_name = basename( $url );
+		$upload_dir = wp_upload_dir( $post['upload_date'] );
+		$new_file = sprintf( '%s/%s', $upload_dir['path'], $file_name );
+		$new_file_url = sprintf( '%s/%s', $upload_dir['url'], $file_name );
 
-		// get placeholder file in the upload dir with a unique, sanitized filename
-		$upload = wp_upload_bits( $file_name, 0, '', $post['upload_date'] );
-		if ( $upload['error'] )
-			return new WP_Error( 'upload_dir_error', $upload['error'] );
-
-		// fetch the remote url and write it to the placeholder file
-		$headers = wp_get_http( $url, $upload['file'] );
-
-		// request failed
-		if ( ! $headers ) {
-			@unlink( $upload['file'] );
-			return new WP_Error( 'import_file_error', __('Remote server did not respond', 'wordpress-importer') );
+		if ( ! file_exists( $new_file ) ) {
+			return new WP_Error( 'upload_file_missing',
+				sprintf(
+					'Failed to find %s on the server.',
+					$new_file
+				)
+			);
 		}
 
-		// make sure the fetch was successful
-		if ( $headers['response'] != '200' ) {
-			@unlink( $upload['file'] );
-			return new WP_Error( 'import_file_error', sprintf( __('Remote server returned error response %1$d %2$s', 'wordpress-importer'), esc_html($headers['response']), get_status_header_desc($headers['response']) ) );
-		}
+		$wp_filetype = wp_check_filetype( $new_file );
 
-		$filesize = filesize( $upload['file'] );
-
-		if ( isset( $headers['content-length'] ) && $filesize != $headers['content-length'] ) {
-			@unlink( $upload['file'] );
-			return new WP_Error( 'import_file_error', __('Remote file is incorrect size', 'wordpress-importer') );
-		}
-
-		if ( 0 == $filesize ) {
-			@unlink( $upload['file'] );
-			return new WP_Error( 'import_file_error', __('Zero size file downloaded', 'wordpress-importer') );
-		}
-
-		$max_size = (int) $this->max_attachment_size();
-		if ( ! empty( $max_size ) && $filesize > $max_size ) {
-			@unlink( $upload['file'] );
-			return new WP_Error( 'import_file_error', sprintf(__('Remote file is too large, limit is %s', 'wordpress-importer'), size_format($max_size) ) );
-		}
+		$upload = array(
+			'file' => $new_file,
+			'url' => $new_file_url,
+			'type' => $wp_filetype['type'],
+			'error' => false
+		);
 
 		// keep track of the old and new urls so we can substitute them later
 		$this->url_remap[$url] = $upload['url'];
 		$this->url_remap[$post['guid']] = $upload['url']; // r13735, really needed?
-		// keep track of the destination if the remote url is redirected somewhere else
-		if ( isset($headers['x-final-location']) && $headers['x-final-location'] != $url )
-			$this->url_remap[$headers['x-final-location']] = $upload['url'];
 
 		return $upload;
 	}
@@ -1203,7 +1182,7 @@ class WP_Import extends WP_Importer {
 	}
 }
 
-} // class_exists( 'WP_Importer' )
+} // class_exists( 'XWP_Skip_Files_Importer' )
 
 function wordpress_importer_init() {
 	load_plugin_textdomain( 'wordpress-importer', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
@@ -1212,7 +1191,7 @@ function wordpress_importer_init() {
 	 * WordPress Importer object for registering the import callback
 	 * @global WP_Import $wp_import
 	 */
-	$GLOBALS['wp_import'] = new WP_Import();
-	register_importer( 'wordpress', 'WordPress', __('Import <strong>posts, pages, comments, custom fields, categories, and tags</strong> from a WordPress export file.', 'wordpress-importer'), array( $GLOBALS['wp_import'], 'dispatch' ) );
+	$GLOBALS['xwp_skip_files_importer'] = new XWP_Skip_Files_Importer();
+	register_importer( 'xwp_skip_files_importer', 'XWP Skip Files Importer', __('Import <strong>posts, pages, comments, custom fields, categories, and tags</strong> from a WordPress export file.', 'wordpress-importer'), array( $GLOBALS['wp_import'], 'dispatch' ) );
 }
 add_action( 'admin_init', 'wordpress_importer_init' );
