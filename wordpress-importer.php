@@ -34,8 +34,8 @@ require dirname( __FILE__ ) . '/parsers.php';
  * @package WordPress
  * @subpackage Importer
  */
-if ( class_exists( 'WP_Importer' ) ) {
-class XWP_Skip_Files_Importer extends WP_Importer {
+if ( class_exists( 'WP_Importer', false ) && ! class_exists( 'WP_Import', false ) ) {
+class WP_Import extends WP_Importer {
 	var $max_wxr_version = 1.2; // max. supported WXR version
 
 	var $id; // WXR attachment ID
@@ -1221,7 +1221,7 @@ class XWP_Skip_Files_Importer extends WP_Importer {
 	}
 }
 
-} // class_exists( 'XWP_Skip_Files_Importer' )
+} // class_exists( 'WP_Importer' )
 
 function wordpress_importer_init() {
 	load_plugin_textdomain( 'wordpress-importer', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
@@ -1230,7 +1230,12 @@ function wordpress_importer_init() {
 	 * WordPress Importer object for registering the import callback
 	 * @global WP_Import $wp_import
 	 */
-	$GLOBALS['xwp_skip_files_importer'] = new XWP_Skip_Files_Importer();
-	register_importer( 'xwp_skip_files_importer', 'XWP Skip Files Importer', __('Import <strong>posts, pages, comments, custom fields, categories, and tags</strong> from a WordPress export file.', 'wordpress-importer'), array( $GLOBALS['wp_import'], 'dispatch' ) );
+	$GLOBALS['wp_import'] = new WP_Import();
+	register_importer(
+		'xwp-skip-files-importer',
+		'XWP Skip Files Importer',
+		__('Import <strong>posts, pages, comments, custom fields, categories, and tags</strong> from a WordPress export file.', 'wordpress-importer'),
+		array( $GLOBALS['wp_import'], 'dispatch' )
+	);
 }
 add_action( 'admin_init', 'wordpress_importer_init' );
