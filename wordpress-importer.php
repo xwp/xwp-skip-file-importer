@@ -1233,7 +1233,7 @@ function wordpress_importer_init() {
 	// Prevent WP from generating intermediate image sizes
 	add_filter( 'intermediate_image_sizes', function() {
 		return array();
-	} );
+	}, PHP_INT_MAX );
 
 	/**
 	 * WordPress Importer object for registering the import callback
