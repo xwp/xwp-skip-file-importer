@@ -984,6 +984,10 @@ class WP_Import extends WP_Importer {
 		$new_file = sprintf( '%s/%s', $upload_dir['path'], $file_name );
 		$new_file_url = sprintf( '%s/%s', $upload_dir['url'], $file_name );
 
+		// Remove any query variables from the image path and URL
+		$new_file = strtok( $new_file, '?' );
+		$new_file_url = strtok( $new_file_url, '?' );
+
 		if ( file_exists( $new_file ) ) {
 			// Use the existing file
 			$wp_filetype = wp_check_filetype( $new_file );
