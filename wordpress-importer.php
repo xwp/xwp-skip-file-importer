@@ -1158,7 +1158,7 @@ class WP_Import extends WP_Importer {
 		echo '<div class="narrow">';
 		echo '<p>'.__( 'Howdy! Upload your WordPress eXtended RSS (WXR) file and we&#8217;ll import the posts, pages, comments, custom fields, categories, and tags into this site.', 'wordpress-importer' ).'</p>';
 		echo '<p>'.__( 'Choose a WXR (.xml) file to upload, then click Upload file and import.', 'wordpress-importer' ).'</p>';
-		wp_import_upload_form( 'admin.php?import=wordpress&amp;step=1' );
+		wp_import_upload_form( 'admin.php?import=xwp-skip-files-importer&amp;step=1' );
 		echo '</div>';
 	}
 
