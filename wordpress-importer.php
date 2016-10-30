@@ -256,7 +256,7 @@ class WP_Import extends WP_Importer {
 	function import_options() {
 		$j = 0;
 ?>
-<form action="<?php echo admin_url( 'admin.php?import=wordpress&amp;step=2' ); ?>" method="post">
+<form action="<?php echo admin_url( 'admin.php?import=xwp-skip-files-importer&amp;step=2' ); ?>" method="post">
 	<?php wp_nonce_field( 'import-wordpress' ); ?>
 	<input type="hidden" name="import_id" value="<?php echo $this->id; ?>" />
 
