@@ -1230,6 +1230,11 @@ class WP_Import extends WP_Importer {
 function wordpress_importer_init() {
 	load_plugin_textdomain( 'wordpress-importer', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
 
+	// Prevent WP from generating intermediate image sizes
+	add_filter( 'intermediate_image_sizes', function() {
+		return array();
+	} );
+
 	/**
 	 * WordPress Importer object for registering the import callback
 	 * @global WP_Import $wp_import
