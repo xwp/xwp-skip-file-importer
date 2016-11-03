@@ -1099,13 +1099,11 @@ class WP_Import extends WP_Importer {
 	 * Use stored mapping information to update old attachment URLs
 	 */
 	function backfill_attachment_urls() {
-		wp_upload_bits(
-			sprintf( 'attachment-map-%s.json', basename( $this->import_file ) ),
+		return wp_upload_bits(
+			sprintf( 'attachment-map-%s.txt', basename( $this->import_file ) ),
 			null,
 			wp_json_encode( $this->url_remap )
 		);
-
-		return;
 
 		// @todo Implement this in other ways
 		/*
