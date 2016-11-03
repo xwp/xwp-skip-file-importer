@@ -48,6 +48,7 @@ class WP_Import extends WP_Importer {
 	var $categories = array();
 	var $tags = array();
 	var $base_url = '';
+	var $import_file;
 
 	// mappings from old information to new
 	var $processed_authors = array();
@@ -102,6 +103,8 @@ class WP_Import extends WP_Importer {
 	function import( $file ) {
 		add_filter( 'import_post_meta_key', array( $this, 'is_valid_meta_key' ) );
 		add_filter( 'http_request_timeout', array( &$this, 'bump_request_timeout' ) );
+
+		$this->import_file = $file;
 
 		$this->import_start( $file );
 
@@ -1096,7 +1099,16 @@ class WP_Import extends WP_Importer {
 	 * Use stored mapping information to update old attachment URLs
 	 */
 	function backfill_attachment_urls() {
-		global $wpdb;
+		wp_upload_bits(
+			sprintf( 'attachment-map-%s.json', basename( $this->import_file ) ),
+			null,
+			wp_json_encode( $this->url_remap )
+		);
+
+		return;
+
+		// @todo Implement this in other ways
+		/*
 		// make sure we do the longest urls first, in case one is a substring of another
 		uksort( $this->url_remap, array(&$this, 'cmpr_strlen') );
 
@@ -1106,6 +1118,7 @@ class WP_Import extends WP_Importer {
 			// remap enclosure urls
 			$result = $wpdb->query( $wpdb->prepare("UPDATE {$wpdb->postmeta} SET meta_value = REPLACE(meta_value, %s, %s) WHERE meta_key='enclosure'", $from_url, $to_url) );
 		}
+		*/
 	}
 
 	/**
