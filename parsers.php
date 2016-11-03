@@ -442,7 +442,7 @@ class WXR_Parser_Regex {
 		$fp = $this->fopen( $file, 'r' );
 		if ( $fp ) {
 			while ( ! $this->feof( $fp ) ) {
-				$importline = rtrim( $this->fgets( $fp ) );
+				$importline = trim( $this->fgets( $fp ) );
 
 				if ( ! $wxr_version && preg_match( '|<wp:wxr_version>(\d+\.\d+)</wp:wxr_version>|', $importline, $version ) )
 					$wxr_version = $version[1];
@@ -453,22 +453,22 @@ class WXR_Parser_Regex {
 					continue;
 				}
 				if ( false !== strpos( $importline, '<wp:category>' ) ) {
-					preg_match( '|<wp:category>(.*?)</wp:category>|is', $importline, $category );
+					preg_match( '|<wp:category>(.*?)$|is', $importline, $category );
 					$this->categories[] = $this->process_category( $category[1] );
 					continue;
 				}
 				if ( false !== strpos( $importline, '<wp:tag>' ) ) {
-					preg_match( '|<wp:tag>(.*?)</wp:tag>|is', $importline, $tag );
+					preg_match( '|<wp:tag>(.*?)$|is', $importline, $tag );
 					$this->tags[] = $this->process_tag( $tag[1] );
 					continue;
 				}
 				if ( false !== strpos( $importline, '<wp:term>' ) ) {
-					preg_match( '|<wp:term>(.*?)</wp:term>|is', $importline, $term );
+					preg_match( '|<wp:term>(.*?)$|is', $importline, $term );
 					$this->terms[] = $this->process_term( $term[1] );
 					continue;
 				}
 				if ( false !== strpos( $importline, '<wp:author>' ) ) {
-					preg_match( '|<wp:author>(.*?)</wp:author>|is', $importline, $author );
+					preg_match( '|<wp:author>(.*?)$|is', $importline, $author );
 					$a = $this->process_author( $author[1] );
 					$this->authors[$a['author_login']] = $a;
 					continue;
