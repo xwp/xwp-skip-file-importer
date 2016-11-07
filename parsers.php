@@ -11,6 +11,7 @@
  */
 class WXR_Parser {
 	function parse( $file ) {
+
 		// Attempt to use proper XML parsers first
 		if ( extension_loaded( 'simplexml' ) ) {
 			$parser = new WXR_Parser_SimpleXML;
@@ -114,41 +115,44 @@ class WXR_Parser_SimpleXML {
 		// grab cats, tags and terms
 		foreach ( $xml->xpath('/rss/channel/wp:category') as $term_arr ) {
 			$t = $term_arr->children( $namespaces['wp'] );
-			$category = array(
+			$term = array(
 				'term_id' => (int) $t->term_id,
-				'category_nicename' => (string) $t->category_nicename,
-				'category_parent' => (string) $t->category_parent,
-				'cat_name' => (string) $t->cat_name,
-				'category_description' => (string) $t->category_description
+				'term_taxonomy' => 'category',
+				'slug' => (string) $t->category_nicename,
+				'term_parent' => (string) $t->category_parent,
+				'term_name' => (string) $t->cat_name,
+				'term_description' => (string) $t->category_description
 			);
 
 			foreach ( $t->termmeta as $meta ) {
-				$category['termmeta'][] = array(
+				$term['termmeta'][] = array(
 					'key' => (string) $meta->meta_key,
 					'value' => (string) $meta->meta_value
 				);
 			}
 
-			$categories[] = $category;
+			$terms[] = $term;
 		}
 
 		foreach ( $xml->xpath('/rss/channel/wp:tag') as $term_arr ) {
 			$t = $term_arr->children( $namespaces['wp'] );
-			$tag = array(
+			$term = array(
 				'term_id' => (int) $t->term_id,
-				'tag_slug' => (string) $t->tag_slug,
-				'tag_name' => (string) $t->tag_name,
-				'tag_description' => (string) $t->tag_description
+				'term_taxonomy' => 'post_tag',
+				'slug' => (string) $t->tag_slug,
+				'term_parent' => null,
+				'term_name' => (string) $t->tag_name,
+				'term_description' => (string) $t->tag_description
 			);
 
 			foreach ( $t->termmeta as $meta ) {
-				$tag['termmeta'][] = array(
+				$term['termmeta'][] = array(
 					'key' => (string) $meta->meta_key,
 					'value' => (string) $meta->meta_value
 				);
 			}
 
-			$tags[] = $tag;
+			$terms[] = $term;
 		}
 
 		foreach ( $xml->xpath('/rss/channel/wp:term') as $term_arr ) {
@@ -255,11 +259,7 @@ class WXR_Parser_SimpleXML {
 		return array(
 			'authors' => $authors,
 			'posts' => $posts,
-			'categories' => $categories,
-			'tags' => $tags,
 			'terms' => $terms,
-			'base_url' => $base_url,
-			'version' => $wxr_version
 		);
 	}
 }
@@ -427,8 +427,6 @@ class WXR_Parser_XML {
 class WXR_Parser_Regex {
 	var $authors = array();
 	var $posts = array();
-	var $categories = array();
-	var $tags = array();
 	var $terms = array();
 	var $base_url = '';
 
@@ -454,12 +452,12 @@ class WXR_Parser_Regex {
 				}
 				if ( false !== strpos( $importline, '<wp:category>' ) ) {
 					preg_match( '|<wp:category>(.*?)$|is', $importline, $category );
-					$this->categories[] = $this->process_category( $category[1] );
+					$this->terms[] = $this->process_category( $category[1] );
 					continue;
 				}
 				if ( false !== strpos( $importline, '<wp:tag>' ) ) {
 					preg_match( '|<wp:tag>(.*?)$|is', $importline, $tag );
-					$this->tags[] = $this->process_tag( $tag[1] );
+					$this->terms[] = $this->process_tag( $tag[1] );
 					continue;
 				}
 				if ( false !== strpos( $importline, '<wp:term>' ) ) {
@@ -497,11 +495,7 @@ class WXR_Parser_Regex {
 		return array(
 			'authors' => $this->authors,
 			'posts' => $this->posts,
-			'categories' => $this->categories,
-			'tags' => $this->tags,
 			'terms' => $this->terms,
-			'base_url' => $this->base_url,
-			'version' => $wxr_version
 		);
 	}
 
@@ -528,26 +522,29 @@ class WXR_Parser_Regex {
 
 	function process_category( $c ) {
 		return array(
-			'term_id' => $this->get_tag( $c, 'wp:term_id' ),
-			'cat_name' => $this->get_tag( $c, 'wp:cat_name' ),
-			'category_nicename'	=> $this->get_tag( $c, 'wp:category_nicename' ),
-			'category_parent' => $this->get_tag( $c, 'wp:category_parent' ),
-			'category_description' => $this->get_tag( $c, 'wp:category_description' ),
+			'term_id' => (int) $this->get_tag( $t, 'wp:term_id' ),
+			'term_taxonomy' => 'category',
+			'slug' => $this->get_tag( $t, 'wp:category_nicename' ),
+			'term_parent' => $this->get_tag( $t, 'wp:category_parent' ),
+			'term_name' => $this->get_tag( $t, 'wp:cat_name' ),
+			'term_description' => $this->get_tag( $t, 'wp:category_description' ),
 		);
 	}
 
 	function process_tag( $t ) {
 		return array(
-			'term_id' => $this->get_tag( $t, 'wp:term_id' ),
-			'tag_name' => $this->get_tag( $t, 'wp:tag_name' ),
-			'tag_slug' => $this->get_tag( $t, 'wp:tag_slug' ),
-			'tag_description' => $this->get_tag( $t, 'wp:tag_description' ),
+			'term_id' => (int) $this->get_tag( $t, 'wp:term_id' ),
+			'term_taxonomy' => 'post_tag',
+			'slug' => $this->get_tag( $t, 'wp:tag_slug' ),
+			'term_parent' => '',
+			'term_name' => $this->get_tag( $t, 'wp:tag_name' ),
+			'term_description' => $this->get_tag( $t, 'wp:tag_description' ),
 		);
 	}
 
 	function process_term( $t ) {
 		return array(
-			'term_id' => $this->get_tag( $t, 'wp:term_id' ),
+			'term_id' => (int) $this->get_tag( $t, 'wp:term_id' ),
 			'term_taxonomy' => $this->get_tag( $t, 'wp:term_taxonomy' ),
 			'slug' => $this->get_tag( $t, 'wp:term_slug' ),
 			'term_parent' => $this->get_tag( $t, 'wp:term_parent' ),
@@ -558,7 +555,7 @@ class WXR_Parser_Regex {
 
 	function process_author( $a ) {
 		return array(
-			'author_id' => $this->get_tag( $a, 'wp:author_id' ),
+			'author_id' => (int) $this->get_tag( $a, 'wp:author_id' ),
 			'author_login' => $this->get_tag( $a, 'wp:author_login' ),
 			'author_email' => $this->get_tag( $a, 'wp:author_email' ),
 			'author_display_name' => $this->get_tag( $a, 'wp:author_display_name' ),
@@ -568,7 +565,7 @@ class WXR_Parser_Regex {
 	}
 
 	function process_post( $post ) {
-		$post_id        = $this->get_tag( $post, 'wp:post_id' );
+		$post_id        = (int) $this->get_tag( $post, 'wp:post_id' );
 		$post_title     = $this->get_tag( $post, 'title' );
 		$post_date      = $this->get_tag( $post, 'wp:post_date' );
 		$post_date_gmt  = $this->get_tag( $post, 'wp:post_date_gmt' );
