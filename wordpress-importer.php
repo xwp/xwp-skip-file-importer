@@ -45,8 +45,6 @@ class WP_Import extends WP_Importer {
 	var $authors = array();
 	var $posts = array();
 	var $terms = array();
-	var $categories = array();
-	var $tags = array();
 	var $base_url = '';
 	var $import_file;
 
@@ -386,98 +384,6 @@ class WP_Import extends WP_Importer {
 				$this->author_mapping[$santized_old_login] = (int) get_current_user_id();
 			}
 		}
-	}
-
-	/**
-	 * Create new categories based on import information
-	 *
-	 * Doesn't create a new category if its slug already exists
-	 */
-	function process_categories() {
-		$this->categories = apply_filters( 'wp_import_categories', $this->categories );
-
-		if ( empty( $this->categories ) )
-			return;
-
-		foreach ( $this->categories as $cat ) {
-			// if the category already exists leave it alone
-			$term_id = term_exists( $cat['category_nicename'], 'category' );
-			if ( $term_id ) {
-				if ( is_array($term_id) ) $term_id = $term_id['term_id'];
-				if ( isset($cat['term_id']) )
-					$this->processed_terms[intval($cat['term_id'])] = (int) $term_id;
-				continue;
-			}
-
-			$category_parent = empty( $cat['category_parent'] ) ? 0 : category_exists( $cat['category_parent'] );
-			$category_description = isset( $cat['category_description'] ) ? $cat['category_description'] : '';
-			$catarr = array(
-				'category_nicename' => $cat['category_nicename'],
-				'category_parent' => $category_parent,
-				'cat_name' => $cat['cat_name'],
-				'category_description' => $category_description
-			);
-			$catarr = wp_slash( $catarr );
-
-			$id = wp_insert_category( $catarr );
-			if ( ! is_wp_error( $id ) ) {
-				if ( isset($cat['term_id']) )
-					$this->processed_terms[intval($cat['term_id'])] = $id;
-			} else {
-				printf( __( 'Failed to import category %s', 'wordpress-importer' ), esc_html($cat['category_nicename']) );
-				if ( defined('IMPORT_DEBUG') && IMPORT_DEBUG )
-					echo ': ' . $id->get_error_message();
-				echo '<br />';
-				continue;
-			}
-
-			$this->process_termmeta( $cat, $id['term_id'] );
-		}
-
-		unset( $this->categories );
-	}
-
-	/**
-	 * Create new post tags based on import information
-	 *
-	 * Doesn't create a tag if its slug already exists
-	 */
-	function process_tags() {
-		$this->tags = apply_filters( 'wp_import_tags', $this->tags );
-
-		if ( empty( $this->tags ) )
-			return;
-
-		foreach ( $this->tags as $tag ) {
-			// if the tag already exists leave it alone
-			$term_id = term_exists( $tag['tag_slug'], 'post_tag' );
-			if ( $term_id ) {
-				if ( is_array($term_id) ) $term_id = $term_id['term_id'];
-				if ( isset($tag['term_id']) )
-					$this->processed_terms[intval($tag['term_id'])] = (int) $term_id;
-				continue;
-			}
-
-			$tag = wp_slash( $tag );
-			$tag_desc = isset( $tag['tag_description'] ) ? $tag['tag_description'] : '';
-			$tagarr = array( 'slug' => $tag['tag_slug'], 'description' => $tag_desc );
-
-			$id = wp_insert_term( $tag['tag_name'], 'post_tag', $tagarr );
-			if ( ! is_wp_error( $id ) ) {
-				if ( isset($tag['term_id']) )
-					$this->processed_terms[intval($tag['term_id'])] = $id['term_id'];
-			} else {
-				printf( __( 'Failed to import post tag %s', 'wordpress-importer' ), esc_html($tag['tag_name']) );
-				if ( defined('IMPORT_DEBUG') && IMPORT_DEBUG )
-					echo ': ' . $id->get_error_message();
-				echo '<br />';
-				continue;
-			}
-
-			$this->process_termmeta( $tag, $id['term_id'] );
-		}
-
-		unset( $this->tags );
 	}
 
 	/**
