@@ -520,7 +520,7 @@ class WXR_Parser_Regex {
 		return $return;
 	}
 
-	function process_category( $c ) {
+	function process_category( $t ) {
 		return array(
 			'term_id' => (int) $this->get_tag( $t, 'wp:term_id' ),
 			'term_taxonomy' => 'category',
