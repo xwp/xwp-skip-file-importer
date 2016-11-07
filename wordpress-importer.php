@@ -105,22 +105,6 @@ class WP_Import extends WP_Importer {
 		$this->import_file = $file;
 
 		$this->import_start( $file );
-
-		$this->get_author_mapping();
-
-		wp_suspend_cache_invalidation( true );
-		$this->process_categories();
-		$this->process_tags();
-		$this->process_terms();
-		$this->process_posts();
-		wp_suspend_cache_invalidation( false );
-
-		// update incorrect/missing information in the DB
-		$this->backfill_parents();
-		$this->backfill_attachment_urls();
-		$this->remap_featured_images();
-
-		$this->import_end();
 	}
 
 	/**
@@ -145,18 +129,11 @@ class WP_Import extends WP_Importer {
 			die();
 		}
 
-		$this->version = $import_data['version'];
-		$this->get_authors_from_import( $import_data );
-		$this->posts = $import_data['posts'];
-		$this->terms = $import_data['terms'];
-		$this->categories = $import_data['categories'];
-		$this->tags = $import_data['tags'];
-		$this->base_url = esc_url( $import_data['base_url'] );
+		file_put_contents(
+			sprintf( '%s/json/json-%s.json', __DIR__, basename( $file ) ),
+			json_encode( $import_data )
+		);
 
-		wp_defer_term_counting( true );
-		wp_defer_comment_counting( true );
-
-		do_action( 'import_start' );
 	}
 
 	/**
