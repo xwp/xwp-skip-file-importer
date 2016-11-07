@@ -120,6 +120,12 @@ class WP_Import extends WP_Importer {
 			die();
 		}
 
+		$json_file = sprintf( '%s/json/json-%s.json', __DIR__, basename( $file ) );
+
+		if ( file_exists( $json_file ) ) {
+			return;
+		}
+
 		$import_data = $this->parse( $file );
 
 		if ( is_wp_error( $import_data ) ) {
@@ -130,7 +136,7 @@ class WP_Import extends WP_Importer {
 		}
 
 		file_put_contents(
-			sprintf( '%s/json/json-%s.json', __DIR__, basename( $file ) ),
+			$json_file,
 			json_encode( $import_data )
 		);
 
