@@ -308,8 +308,11 @@ class WP_Import extends WP_Importer {
 	 * or falls back to the current user in case of error with either of the previous
 	 */
 	function get_author_mapping() {
+		// We assume that ALL users have their local versions
 		foreach ( $this->authors as $author_login => $author_meta_old ) {
-			$user = get_user_by( 'user_login', $author_login );
+			$user = get_user_by( 'login', $author_login );
+
+			// @todo Create a new user if we don't find one
 
 			$this->processed_authors[ $author_login ] = $user->ID;
 			$this->author_mapping[ $author_meta_old['author_id'] ] = $user->ID;
