@@ -50,6 +50,7 @@ class WP_Import extends WP_Importer {
 	var $processed_authors = array();
 	var $author_mapping = array();
 	var $processed_terms = array();
+	var $term_slug_map = array();
 	var $processed_posts = array();
 	var $post_orphans = array();
 	var $processed_menu_items = array();
@@ -375,17 +376,6 @@ class WP_Import extends WP_Importer {
 		printf( "Importing %d terms.\n", $total );
 
 		foreach ( $this->terms as $term_no => $term ) {
-			/*
-			// if the term already exists in the correct taxonomy leave it alone
-			$term_id = term_exists( $term['slug'], $term['term_taxonomy'] );
-			if ( $term_id ) {
-				if ( is_array($term_id) ) $term_id = $term_id['term_id'];
-				if ( isset($term['term_id']) )
-					$this->processed_terms[intval($term['term_id'])] = (int) $term_id;
-				continue;
-			}
-			*/
-
 			if ( ! empty( $term['term_parent'] ) ) {
 				$parent = $parent['term_id'];
 			} else {
@@ -398,6 +388,8 @@ class WP_Import extends WP_Importer {
 
 			$id = wp_insert_term( $term['term_name'], $term['term_taxonomy'], $termarr );
 			if ( ! is_wp_error( $id ) ) {
+				$this->term_slug_map[ $term['term_taxonomy'] ][ $term['slug'] ] = (int) $id['term_id'];
+
 				if ( isset($term['term_id']) )
 					$this->processed_terms[intval($term['term_id'])] = $id['term_id'];
 			} else {
@@ -504,7 +496,7 @@ class WP_Import extends WP_Importer {
 			if ( $post['status'] == 'auto-draft' )
 				continue;
 
-			printf( "Post import ID (%s)\n", $post['post_id'], number_format( ++$done / $total * 100, 2 ) );
+			printf( "Post import ID %d (%s)\n", $post['post_id'], number_format( ++$done / $total * 100, 2 ) );
 
 			if ( 'nav_menu_item' == $post['post_type'] ) {
 				$this->process_menu_item( $post );
@@ -599,15 +591,10 @@ class WP_Import extends WP_Importer {
 			if ( ! empty( $post['terms'] ) ) {
 				$terms_to_set = array();
 				foreach ( $post['terms'] as $term ) {
-					// back compat with WXR 1.0 map 'tag' to 'post_tag'
-					$taxonomy = ( 'tag' == $term['domain'] ) ? 'post_tag' : $term['domain'];
-					$term_id = $term['term_id'];
-					$terms_to_set[$taxonomy][] = intval( $term_id );
+					$terms_to_set[ $term['domain'] ][] = $this->term_slug_map[ $term['domain'] ][ $term['slug'] ];
 				}
-
 				foreach ( $terms_to_set as $tax => $ids ) {
-					$tt_ids = wp_set_post_terms( $post_id, $ids, $tax );
-					do_action( 'wp_import_set_post_terms', $tt_ids, $ids, $tax, $post_id, $post );
+					wp_set_post_terms( $post_id, $ids, $tax );
 				}
 				unset( $post['terms'], $terms_to_set );
 			}
