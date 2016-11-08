@@ -45,10 +45,6 @@ class WP_Import extends WP_Importer {
 	var $authors = array();
 	var $posts = array();
 	var $terms = array();
-	var $categories = array();
-	var $tags = array();
-	var $base_url = '';
-	var $import_file;
 
 	// mappings from old information to new
 	var $processed_authors = array();
@@ -104,15 +100,9 @@ class WP_Import extends WP_Importer {
 		add_filter( 'import_post_meta_key', array( $this, 'is_valid_meta_key' ) );
 		add_filter( 'http_request_timeout', array( &$this, 'bump_request_timeout' ) );
 
-		$this->import_file = $file;
-
 		$this->import_start( $file );
 
-		$this->get_author_mapping();
-
 		wp_suspend_cache_invalidation( true );
-		$this->process_categories();
-		$this->process_tags();
 		$this->process_terms();
 		$this->process_posts();
 		wp_suspend_cache_invalidation( false );
@@ -131,29 +121,9 @@ class WP_Import extends WP_Importer {
 	 * @param string $file Path to the WXR file for importing
 	 */
 	function import_start( $file ) {
-		if ( ! is_file($file) ) {
-			echo '<p><strong>' . __( 'Sorry, there has been an error.', 'wordpress-importer' ) . '</strong><br />';
-			echo __( 'The file does not exist, please try again.', 'wordpress-importer' ) . '</p>';
-			$this->footer();
-			die();
-		}
-
-		$import_data = $this->parse( $file );
-
-		if ( is_wp_error( $import_data ) ) {
-			echo '<p><strong>' . __( 'Sorry, there has been an error.', 'wordpress-importer' ) . '</strong><br />';
-			echo esc_html( $import_data->get_error_message() ) . '</p>';
-			$this->footer();
-			die();
-		}
-
-		$this->version = $import_data['version'];
-		$this->get_authors_from_import( $import_data );
-		$this->posts = $import_data['posts'];
-		$this->terms = $import_data['terms'];
-		$this->categories = $import_data['categories'];
-		$this->tags = $import_data['tags'];
-		$this->base_url = esc_url( $import_data['base_url'] );
+		$this->authors = json_decode( file_get_contents( __DIR__ . '/authors.json' ), true );
+		$this->terms = json_decode( file_get_contents( __DIR__ . '/terms.json' ), true );
+		$this->posts = json_decode( file_get_contents( __DIR__ . '/posts.json' ), true );
 
 		wp_defer_term_counting( true );
 		wp_defer_comment_counting( true );
@@ -389,98 +359,6 @@ class WP_Import extends WP_Importer {
 	}
 
 	/**
-	 * Create new categories based on import information
-	 *
-	 * Doesn't create a new category if its slug already exists
-	 */
-	function process_categories() {
-		$this->categories = apply_filters( 'wp_import_categories', $this->categories );
-
-		if ( empty( $this->categories ) )
-			return;
-
-		foreach ( $this->categories as $cat ) {
-			// if the category already exists leave it alone
-			$term_id = term_exists( $cat['category_nicename'], 'category' );
-			if ( $term_id ) {
-				if ( is_array($term_id) ) $term_id = $term_id['term_id'];
-				if ( isset($cat['term_id']) )
-					$this->processed_terms[intval($cat['term_id'])] = (int) $term_id;
-				continue;
-			}
-
-			$category_parent = empty( $cat['category_parent'] ) ? 0 : category_exists( $cat['category_parent'] );
-			$category_description = isset( $cat['category_description'] ) ? $cat['category_description'] : '';
-			$catarr = array(
-				'category_nicename' => $cat['category_nicename'],
-				'category_parent' => $category_parent,
-				'cat_name' => $cat['cat_name'],
-				'category_description' => $category_description
-			);
-			$catarr = wp_slash( $catarr );
-
-			$id = wp_insert_category( $catarr );
-			if ( ! is_wp_error( $id ) ) {
-				if ( isset($cat['term_id']) )
-					$this->processed_terms[intval($cat['term_id'])] = $id;
-			} else {
-				printf( __( 'Failed to import category %s', 'wordpress-importer' ), esc_html($cat['category_nicename']) );
-				if ( defined('IMPORT_DEBUG') && IMPORT_DEBUG )
-					echo ': ' . $id->get_error_message();
-				echo '<br />';
-				continue;
-			}
-
-			$this->process_termmeta( $cat, $id['term_id'] );
-		}
-
-		unset( $this->categories );
-	}
-
-	/**
-	 * Create new post tags based on import information
-	 *
-	 * Doesn't create a tag if its slug already exists
-	 */
-	function process_tags() {
-		$this->tags = apply_filters( 'wp_import_tags', $this->tags );
-
-		if ( empty( $this->tags ) )
-			return;
-
-		foreach ( $this->tags as $tag ) {
-			// if the tag already exists leave it alone
-			$term_id = term_exists( $tag['tag_slug'], 'post_tag' );
-			if ( $term_id ) {
-				if ( is_array($term_id) ) $term_id = $term_id['term_id'];
-				if ( isset($tag['term_id']) )
-					$this->processed_terms[intval($tag['term_id'])] = (int) $term_id;
-				continue;
-			}
-
-			$tag = wp_slash( $tag );
-			$tag_desc = isset( $tag['tag_description'] ) ? $tag['tag_description'] : '';
-			$tagarr = array( 'slug' => $tag['tag_slug'], 'description' => $tag_desc );
-
-			$id = wp_insert_term( $tag['tag_name'], 'post_tag', $tagarr );
-			if ( ! is_wp_error( $id ) ) {
-				if ( isset($tag['term_id']) )
-					$this->processed_terms[intval($tag['term_id'])] = $id['term_id'];
-			} else {
-				printf( __( 'Failed to import post tag %s', 'wordpress-importer' ), esc_html($tag['tag_name']) );
-				if ( defined('IMPORT_DEBUG') && IMPORT_DEBUG )
-					echo ': ' . $id->get_error_message();
-				echo '<br />';
-				continue;
-			}
-
-			$this->process_termmeta( $tag, $id['term_id'] );
-		}
-
-		unset( $this->tags );
-	}
-
-	/**
 	 * Create new terms based on import information
 	 *
 	 * Doesn't create a term its slug already exists
@@ -491,7 +369,13 @@ class WP_Import extends WP_Importer {
 		if ( empty( $this->terms ) )
 			return;
 
-		foreach ( $this->terms as $term ) {
+		$total = count( $this->terms );
+		$done = 0;
+
+		printf( "Importing %d terms.\n", $total );
+
+		foreach ( $this->terms as $term_no => $term ) {
+			/*
 			// if the term already exists in the correct taxonomy leave it alone
 			$term_id = term_exists( $term['slug'], $term['term_taxonomy'] );
 			if ( $term_id ) {
@@ -500,13 +384,14 @@ class WP_Import extends WP_Importer {
 					$this->processed_terms[intval($term['term_id'])] = (int) $term_id;
 				continue;
 			}
+			*/
 
-			if ( empty( $term['term_parent'] ) ) {
-				$parent = 0;
+			if ( ! empty( $term['term_parent'] ) ) {
+				$parent = $parent['term_id'];
 			} else {
-				$parent = term_exists( $term['term_parent'], $term['term_taxonomy'] );
-				if ( is_array( $parent ) ) $parent = $parent['term_id'];
+				$parent = 0;
 			}
+
 			$term = wp_slash( $term );
 			$description = isset( $term['term_description'] ) ? $term['term_description'] : '';
 			$termarr = array( 'slug' => $term['slug'], 'description' => $description, 'parent' => intval($parent) );
@@ -524,6 +409,10 @@ class WP_Import extends WP_Importer {
 			}
 
 			$this->process_termmeta( $term, $id['term_id'] );
+
+			printf( "Term import ID %d (%s)\n", $term['term_id'], number_format( ++$done / $total * 100, 2 ) );
+
+			unset( $this->terms[ $term_no ] );
 		}
 
 		unset( $this->terms );
@@ -601,22 +490,21 @@ class WP_Import extends WP_Importer {
 	function process_posts() {
 		$this->posts = apply_filters( 'wp_import_posts', $this->posts );
 
-		foreach ( $this->posts as $post ) {
-			$post = apply_filters( 'wp_import_post_data_raw', $post );
+		$done = 0;
+		$total = count( $this->posts );
 
-			if ( ! post_type_exists( $post['post_type'] ) ) {
-				printf( __( 'Failed to import &#8220;%s&#8221;: Invalid post type %s', 'wordpress-importer' ),
-					esc_html($post['post_title']), esc_html($post['post_type']) );
-				echo '<br />';
-				do_action( 'wp_import_post_exists', $post );
-				continue;
-			}
+		printf( "Importing %d posts.\n", $total );
+
+		foreach ( $this->posts as $post_no => $post ) {
+			$post = apply_filters( 'wp_import_post_data_raw', $post );
 
 			if ( isset( $this->processed_posts[$post['post_id']] ) && ! empty( $post['post_id'] ) )
 				continue;
 
 			if ( $post['status'] == 'auto-draft' )
 				continue;
+
+			printf( "Post import ID (%s)\n", $post['post_id'], number_format( ++$done / $total * 100, 2 ) );
 
 			if ( 'nav_menu_item' == $post['post_type'] ) {
 				$this->process_menu_item( $post );
@@ -626,19 +514,6 @@ class WP_Import extends WP_Importer {
 			$post_type_object = get_post_type_object( $post['post_type'] );
 
 			$post_exists = post_exists( $post['post_title'], '', $post['post_date'] );
-
-			/**
-			* Filter ID of the existing post corresponding to post currently importing.
-			*
-			* Return 0 to force the post to be imported. Filter the ID to be something else
-			* to override which existing post is mapped to the imported post.
-			*
-			* @see post_exists()
-			* @since 0.6.2
-			*
-			* @param int   $post_exists  Post ID, or 0 if post did not exist.
-			* @param array $post         The post array to be inserted.
-			*/
 			$post_exists = apply_filters( 'wp_import_existing_post', $post_exists, $post );
 
 			if ( $post_exists && get_post_type( $post_exists ) == $post['post_type'] ) {
@@ -661,10 +536,6 @@ class WP_Import extends WP_Importer {
 
 				// map the post author
 				$author = sanitize_user( $post['post_author'], true );
-				if ( isset( $this->author_mapping[$author] ) )
-					$author = $this->author_mapping[$author];
-				else
-					$author = (int) get_current_user_id();
 
 				$postdata = array(
 					'import_id' => $post['post_id'], 'post_author' => $author, 'post_date' => $post['post_date'],
@@ -730,22 +601,7 @@ class WP_Import extends WP_Importer {
 				foreach ( $post['terms'] as $term ) {
 					// back compat with WXR 1.0 map 'tag' to 'post_tag'
 					$taxonomy = ( 'tag' == $term['domain'] ) ? 'post_tag' : $term['domain'];
-					$term_exists = term_exists( $term['slug'], $taxonomy );
-					$term_id = is_array( $term_exists ) ? $term_exists['term_id'] : $term_exists;
-					if ( ! $term_id ) {
-						$t = wp_insert_term( $term['name'], $taxonomy, array( 'slug' => $term['slug'] ) );
-						if ( ! is_wp_error( $t ) ) {
-							$term_id = $t['term_id'];
-							do_action( 'wp_import_insert_term', $t, $term, $post_id, $post );
-						} else {
-							printf( __( 'Failed to import %s %s', 'wordpress-importer' ), esc_html($taxonomy), esc_html($term['name']) );
-							if ( defined('IMPORT_DEBUG') && IMPORT_DEBUG )
-								echo ': ' . $t->get_error_message();
-							echo '<br />';
-							do_action( 'wp_import_insert_term_failed', $t, $term, $post_id, $post );
-							continue;
-						}
-					}
+					$term_id = $term['term_id'];
 					$terms_to_set[$taxonomy][] = intval( $term_id );
 				}
 
@@ -836,6 +692,8 @@ class WP_Import extends WP_Importer {
 					}
 				}
 			}
+
+			unset( $this->posts[ $post_no ] );
 		}
 
 		unset( $this->posts );
@@ -940,10 +798,6 @@ class WP_Import extends WP_Importer {
 		if ( ! $this->fetch_attachments )
 			return new WP_Error( 'attachment_processing_error',
 				__( 'Fetching attachments is not enabled', 'wordpress-importer' ) );
-
-		// if the URL is absolute, but does not contain address, then upload it assuming base_site_url
-		if ( preg_match( '|^/[\w\W]+$|', $url ) )
-			$url = rtrim( $this->base_url, '/' ) . $url;
 
 		$upload = $this->fetch_remote_file( $url, $post );
 		if ( is_wp_error( $upload ) )
@@ -1099,12 +953,6 @@ class WP_Import extends WP_Importer {
 	 * Use stored mapping information to update old attachment URLs
 	 */
 	function backfill_attachment_urls() {
-		return wp_upload_bits(
-			sprintf( 'attachment-map-%s.txt', basename( $this->import_file ) ),
-			null,
-			wp_json_encode( $this->url_remap )
-		);
-
 		// @todo Implement this in other ways
 		/*
 		// make sure we do the longest urls first, in case one is a substring of another
