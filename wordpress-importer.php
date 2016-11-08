@@ -126,6 +126,8 @@ class WP_Import extends WP_Importer {
 		$this->terms = json_decode( file_get_contents( __DIR__ . '/terms.json' ), true );
 		$this->posts = json_decode( file_get_contents( __DIR__ . '/posts.json' ), true );
 
+		$this->get_author_mapping();
+
 		wp_defer_term_counting( true );
 		wp_defer_comment_counting( true );
 
@@ -306,56 +308,11 @@ class WP_Import extends WP_Importer {
 	 * or falls back to the current user in case of error with either of the previous
 	 */
 	function get_author_mapping() {
-		if ( ! isset( $_POST['imported_authors'] ) )
-			return;
+		foreach ( $this->authors as $author_login => $author_meta_old ) {
+			$user = get_user_by( 'user_login', $author_login );
 
-		$create_users = $this->allow_create_users();
-
-		foreach ( (array) $_POST['imported_authors'] as $i => $old_login ) {
-			// Multisite adds strtolower to sanitize_user. Need to sanitize here to stop breakage in process_posts.
-			$santized_old_login = sanitize_user( $old_login, true );
-			$old_id = isset( $this->authors[$old_login]['author_id'] ) ? intval($this->authors[$old_login]['author_id']) : false;
-
-			if ( ! empty( $_POST['user_map'][$i] ) ) {
-				$user = get_userdata( intval($_POST['user_map'][$i]) );
-				if ( isset( $user->ID ) ) {
-					if ( $old_id )
-						$this->processed_authors[$old_id] = $user->ID;
-					$this->author_mapping[$santized_old_login] = $user->ID;
-				}
-			} else if ( $create_users ) {
-				if ( ! empty($_POST['user_new'][$i]) ) {
-					$user_id = wp_create_user( $_POST['user_new'][$i], wp_generate_password() );
-				} else if ( $this->version != '1.0' ) {
-					$user_data = array(
-						'user_login' => $old_login,
-						'user_pass' => wp_generate_password(),
-						'user_email' => isset( $this->authors[$old_login]['author_email'] ) ? $this->authors[$old_login]['author_email'] : '',
-						'display_name' => $this->authors[$old_login]['author_display_name'],
-						'first_name' => isset( $this->authors[$old_login]['author_first_name'] ) ? $this->authors[$old_login]['author_first_name'] : '',
-						'last_name' => isset( $this->authors[$old_login]['author_last_name'] ) ? $this->authors[$old_login]['author_last_name'] : '',
-					);
-					$user_id = wp_insert_user( $user_data );
-				}
-
-				if ( ! is_wp_error( $user_id ) ) {
-					if ( $old_id )
-						$this->processed_authors[$old_id] = $user_id;
-					$this->author_mapping[$santized_old_login] = $user_id;
-				} else {
-					printf( __( 'Failed to create new user for %s. Their posts will be attributed to the current user.', 'wordpress-importer' ), esc_html($this->authors[$old_login]['author_display_name']) );
-					if ( defined('IMPORT_DEBUG') && IMPORT_DEBUG )
-						echo ' ' . $user_id->get_error_message();
-					echo '<br />';
-				}
-			}
-
-			// failsafe: if the user_id was invalid, default to the current user
-			if ( ! isset( $this->author_mapping[$santized_old_login] ) ) {
-				if ( $old_id )
-					$this->processed_authors[$old_id] = (int) get_current_user_id();
-				$this->author_mapping[$santized_old_login] = (int) get_current_user_id();
-			}
+			$this->processed_authors[ $author_login ] = $user->ID;
+			$this->author_mapping[ $author_meta_old['author_id'] ] = $user->ID;
 		}
 	}
 
@@ -528,6 +485,7 @@ class WP_Import extends WP_Importer {
 
 				// map the post author
 				$author = sanitize_user( $post['post_author'], true );
+				$author = $this->processed_authors[ $author ];
 
 				$postdata = array(
 					'import_id' => $post['post_id'], 'post_author' => $author, 'post_date' => $post['post_date'],
